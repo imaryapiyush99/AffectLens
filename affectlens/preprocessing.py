@@ -12,7 +12,7 @@ def clean_text(text: str) -> str:
     """
     Removes URLs, HTML entities, punctuation and extra whitespaces and converts text to lowercase.
 
-    Args: text (str): Raw text string from Reddit posts
+    Args: text (str): Raw text string
 
     Returns: str: Lowercase cleaned string with noise removed
     """
@@ -78,3 +78,14 @@ def preprocess(text: str) -> str:
     lemmatized = lemmatize(no_stopwords)
     return " ".join(lemmatized)
   
+def get_processed_text(text: str) -> str:
+    """
+    Get the cleaned and preprocessed text.
+
+    Args: text (str): Raw text string
+
+    Returns: str: Cleaned and preprocessed text string
+    """
+    if not text.strip():
+        raise ValueError("Input text is empty or whitespace only.")
+    return preprocess(text)
