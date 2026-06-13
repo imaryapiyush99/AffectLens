@@ -1,4 +1,3 @@
-```python
 import re
 import nltk
 from nltk.corpus import stopwords
@@ -48,8 +47,10 @@ def remove_stopwords(tokens: list[str]) -> list[str]:
 
     Returns: list[str]: List of tokens with stop words removed
     """
+    negation = set(["not", "no", "never", "n't", "ain't", "nor", "don't", "doesn't", "didn't", "won't", "wouldn't", "can't", "couldn't", "shouldn't"])
+
     stop_words = set(stopwords.words("english"))
-    return [word for word in tokens if word not in stop_words]
+    return [word for word in tokens if word not in stop_words or word in negation]
 
 
 def lemmatize(tokens: list[str]) -> list[str]:
@@ -77,4 +78,3 @@ def preprocess(text: str) -> str:
     lemmatized = lemmatize(no_stopwords)
     return " ".join(lemmatized)
   
-```
