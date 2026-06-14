@@ -65,13 +65,11 @@ def load_training_data(csv_path: str) -> tuple[list[str], list[int]]:
         labels.append(item["label"])
     return texts, labels
 
-
-
 def save_results(results: list[dict[str, str | float]], output_path: str) -> None:
     """
-    Saves the results to a CSV file with "text", "title", "predicted_label", "classifier_score", "ensemble_score", "final_score", "volatility_score" columns.
+    Saves the results to a CSV file with "text", "title", "predicted_label", "classifier_score", "ensemble_score", "final_score", "emotional_swing", "volatility_score" columns.
 
-    Args: results (list[dict[str, str | float]]): A list of dictionaries where each dictionary has "text", "title", "predicted_label", "classifier_score", "ensemble_score", "final_score", "volatility_score" keys, output_path (str): Path to save the results CSV file
+    Args: results (list[dict[str, str | float]]): A list of dictionaries where each dictionary has "text", "title", "predicted_label", "classifier_score", "ensemble_score", "final_score", "emotional_swing", "volatility_score" keys, output_path (str): Path to save the results CSV file
     """
     if not results:
         raise ValueError("Results list is empty. Cannot save to CSV.")
@@ -79,7 +77,7 @@ def save_results(results: list[dict[str, str | float]], output_path: str) -> Non
     if not csv_file.parent.exists():
         raise FileNotFoundError(f"Output directory does not exist: {csv_file.parent}")
     with open(output_path, "w", encoding="utf-8", newline="") as csvfile:
-        writer = csv.DictWriter(csvfile, fieldnames=["text", "title", "predicted_label", "classifier_score", "ensemble_score", "final_score", "volatility_score"], extrasaction="ignore", restval="N/A")
+        writer = csv.DictWriter(csvfile, fieldnames=["text", "title", "predicted_label", "classifier_score", "ensemble_score", "final_score", "emotional_swing", "volatility_score"], extrasaction="ignore", restval="N/A")
         writer.writeheader()
         for result in results:
             writer.writerow(result)

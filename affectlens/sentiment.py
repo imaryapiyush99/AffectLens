@@ -1,4 +1,3 @@
-from affectlens.preprocessing import get_processed_text
 from nltk.sentiment import SentimentIntensityAnalyzer
 from textblob import TextBlob
 
@@ -27,21 +26,20 @@ def get_textblob_score(text: str) -> float:
     blob = TextBlob(text)
     return blob.sentiment.polarity
     
-
 def ensemble_score(text: str) -> float:
     """
-    Get the weighted sentiment score from both VADER and TextBlob.
+    Get the ensemble sentiment score using both VADER and TextBlob.
 
-    Args: text (str): Raw text string
+    Args: text (str): Preprocessed text string
 
-    Returns: float: Weighted sentiment score between -1 (most negative) and +1 (most positive)
+    Returns: float: Ensemble sentiment score between -1 (most negative) and +1 (most positive)
     """
-    processed_text = get_processed_text(text)
-    if not processed_text.strip():
-        return 0.0
-    vader = get_vader_score(processed_text)
-    textblob = get_textblob_score(processed_text)
+    vader_score = get_vader_score(text)
+    textblob_score = get_textblob_score(text)
     weight = 0.3
-    return (vader * (1 - weight) + textblob * weight)
+    return ((1 - weight) * vader_score) + (weight * textblob_score)
+
+
+
 
 

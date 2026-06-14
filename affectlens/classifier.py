@@ -3,7 +3,6 @@ import joblib
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.linear_model import LogisticRegression
 from data_loader import load_training_data
-from data_loader import load_dataset
 
 
 LABELS = {
@@ -24,6 +23,12 @@ def needs_training(model_path: str, vectorizer_path: str) -> bool:
     """
     model_file = Path(model_path)
     vectorizer_file = Path(vectorizer_path)
+    if not model_file.exists() or not vectorizer_file.exists():
+        return True
+    if not model_file.is_file() or not vectorizer_file.is_file():
+        return True
+    if model_file.stat().st_size == 0 or vectorizer_file.stat().st_size == 0:
+        return True
     return not (model_file.exists() and vectorizer_file.exists())
 
 
@@ -35,7 +40,12 @@ def train(csv_path: str, model_path: str, vectorizer_path: str) -> None:
     Args: csv_path (str): Path to the CSV file containing the training data with 'text', 'target' and 'title'(optional) columns, model_path (str): Path to save the trained model file, vectorizer_path (str): Path to save the trained vectorizer file
     """
     texts, combined_labels = load_training_data(csv_path)
-
+    if not model_path.strip() or not vectorizer_path.strip():
+        raise ValueError("Model path and vectorizer path must be provided.")
+    if not isinstance(model_path, str) or not isinstance(vectorizer_path, str):
+        raise ValueError("Model path and vectorizer path must be strings.")
+    if not Path(model_path).parent.exists() or not Path(vectorizer_path).parent.exists():
+        raise FileNotFoundError("Model path or vectorizer path directory does not exist. Please provide valid paths.")
     # Implementation for training the model goes here
     vectorizer = TfidfVectorizer()
     feature_matrix = vectorizer.fit_transform(texts)
@@ -56,6 +66,12 @@ def load(model_path: str, vectorizer_path: str) -> tuple[LogisticRegression, Tfi
 
     Returns: tuple[LogisticRegression, TfidfVectorizer]: The loaded model and vectorizer objects
     """
+    if not Path(model_path).exists() or not Path(vectorizer_path).exists():
+        raise FileNotFoundError("Model file or vectorizer file not found. Please train the model first.")
+    if not Path(model_path).is_file() or not Path(vectorizer_path).is_file():
+        raise ValueError("Model path or vectorizer path is not a file. Please provide valid file paths.")
+    if Path(model_path).stat().st_size == 0 or Path(vectorizer_path).stat().st_size == 0:
+        raise ValueError("Model file or vectorizer file is empty. Please train the model again.")
     model = joblib.load(model_path)
     vectorizer = joblib.load(vectorizer_path)
     return model, vectorizer
@@ -70,6 +86,14 @@ def predict(text: str, model: LogisticRegression, vectorizer: TfidfVectorizer) -
 
     Returns: tuple[str, float]: The predicted sentiment label ('Stress', 'Depression', 'Bipolar disorder', 'Personality disorder', 'Anxiety') and the confidence score (0.0 to 1.0)
     """
+    if not text.strip():
+        raise ValueError("Input text is empty or whitespace only.")
+    if model is None or vectorizer is None:
+        raise ValueError("Model and vectorizer must be loaded before prediction.")
+    if not isinstance(model, LogisticRegression):
+        raise ValueError("Model must be an instance of LogisticRegression.")
+    if not isinstance(vectorizer, TfidfVectorizer):
+        raise ValueError("Vectorizer must be an instance of TfidfVectorizer.")
     feature_vector = vectorizer.transform([text])
     predictions = model.predict(feature_vector)
     probabilities = model.predict_proba(feature_vector)
@@ -77,22 +101,5 @@ def predict(text: str, model: LogisticRegression, vectorizer: TfidfVectorizer) -
     predicted_label = LABELS[predictions[0]]
     return predicted_label, classifier_score
 
-def get_predictions(csv_path: str, model_path: str, vectorizer_path: str) -> list[dict[str, str | float]]:
-    """
-    Gets the predictions for each text in the dataset and returns a list of dictionaries with "text", "title", "predicted_label", "classifier_score" keys.
-
-    Args: csv_path (str): Path to the CSV file containing the dataset with 'text', 'title'(optional), and 'target' columns, model_path (str): Path to the saved model file, vectorizer_path (str): Path to the saved vectorizer file
-
-    Returns: list[dict[str, str | float]]: A list of dictionaries where each dictionary has "text", "title", "predicted_label", "classifier_score" keys
-    """
-    dataset = load_dataset(csv_path)
-    results = []
-    model, vectorizer = load(model_path, vectorizer_path)
-    for item in dataset:
-        text = item["text"]
-        title = item.get("title", "")
-        predicted_label, classifier_score = predict(text, model, vectorizer)
-        results.append({"text": text, "title": title, "predicted_label": predicted_label, "classifier_score": classifier_score})
-    return results
 
 
