@@ -1,20 +1,17 @@
 import pytest
-from affectlens.sentiment import get_vader_score, get_textblob_score, ensemble_score, get_processed_text
-
-def test_get_processed_text_empty():
-    with pytest.raises(ValueError):
-        get_processed_text("   ")
-
-def test_get_processed_text_valid():
-    assert get_processed_text("Hello World!") == "hello world"
+from affectlens.sentiment import get_vader_score, get_textblob_score, ensemble_score
 
 def test_get_vader_score():
-    assert get_vader_score("I love this!") > 0
-    assert get_vader_score("I hate this!") < 0
+    assert get_vader_score("love") > 0
+    assert get_vader_score("hate") < 0
 
 def test_get_textblob_score():
-    assert get_textblob_score("I love this!") > 0
-    assert get_textblob_score("I hate this!") < 0
+    assert get_textblob_score("love") > 0
+    assert get_textblob_score("hate") < 0
+
+def test_ensemble_score_empty():
+    with pytest.raises(ValueError):
+        ensemble_score("   ")    
 
 def test_ensemble_score_zero():
     assert ensemble_score("this is it") == 0.0

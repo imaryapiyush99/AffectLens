@@ -1,20 +1,9 @@
-from affectlens.preprocessing import preprocess
+from affectlens.preprocessing import get_processed_text
 from nltk.sentiment import SentimentIntensityAnalyzer
 from textblob import TextBlob
 
 sia = SentimentIntensityAnalyzer()
 
-def get_processed_text(text: str) -> str:
-    """
-    Get the cleaned and preprocessed text.
-
-    Args: text (str): Raw text string
-
-    Returns: str: Cleaned and preprocessed text string
-    """
-    if not text.strip():
-        raise ValueError("Input text is empty or whitespace only.")
-    return preprocess(text)
 
 def get_vader_score(text: str) -> float:
     """
