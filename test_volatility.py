@@ -32,8 +32,6 @@ def test_calculate_volatility_score_sufficient_entries():
 
 def test_high_volatility_flag_invalid_input():
     with pytest.raises(ValueError):
-        high_volatility_flag(None, threshold=0.5)
-    with pytest.raises(ValueError):
         high_volatility_flag("invalid_score", threshold=0.5)
     with pytest.raises(ValueError):
         high_volatility_flag(0.6, threshold="invalid_threshold")

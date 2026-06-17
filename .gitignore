@@ -6,3 +6,5 @@ __pycache__/
 models/
 data/training_data/
 data/go_emotions_dataset.csv
+results/*.csv
+*.pkl

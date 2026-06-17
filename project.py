@@ -25,6 +25,8 @@ def get_preprocessed_text(dataset: list[dict[str, str | int]]) -> list[str]:
         raise ValueError("Dataset is empty.")
     if not all(isinstance(item, dict) for item in dataset):
         raise ValueError("All items in the dataset must be dictionaries.")
+    if not dataset[0].get("text"):
+        raise ValueError("Dataset dictionaries must contain a 'text' key.")
     preprocessed_texts = []
     for item in dataset:
         try:
@@ -44,6 +46,8 @@ def get_ensemble_scores(texts: list[str], weight: float) -> list[float]:
 
     Results: list[float]: List of ensemble sentiment scores between -1 (most negative) and +1 (most positive)
     """
+    if not isinstance(texts, list):
+        raise ValueError("Input texts must be a list of strings.")
     if not all(isinstance(text, str) for text in texts):
         raise ValueError("All items in the input text list must be strings.")
     if not texts:
@@ -67,10 +71,14 @@ def get_classifier_predictions(texts: list[str], model_path: str, vectorizer_pat
 
     Results: list[tuple[str, float]]: List of tuples containing the predicted sentiment label and confidence score for each input text
     """
+    if not isinstance(texts, list):
+        raise ValueError("Input texts must be a list of strings.")
     if not all(isinstance(text, str) for text in texts):
         raise ValueError("All items in the input text list must be strings.")
     if not texts:
         raise ValueError("Input text list is empty.")
+    if any(not text.strip() for text in texts):
+        raise ValueError("Input texts cannot be empty.")
     if not isinstance(threshold, (int, float)):
         raise ValueError("Threshold must be a number.")
     if not 0 <= threshold <= 1:
@@ -98,6 +106,14 @@ def get_emotional_swing(texts: list[str], sentiment_scores: list[float]) -> list
 
     Returns: list[float | None]: List of emotional swing scores for each input text, where None indicates insufficient data to calculate swing
     """
+    if not isinstance(texts, list):
+        raise ValueError("Input texts must be a list of strings.")
+    if not all(isinstance(text, str) for text in texts):
+        raise ValueError("All items in the input text list must be strings.")
+    if not texts:
+        raise ValueError("Input text list is empty.")
+    if not texts[0].strip():
+        raise ValueError("Input texts cannot be empty.")
     if not isinstance(sentiment_scores, list):
         raise ValueError("Sentiment scores must be a list of floats.")
     if not sentiment_scores:
@@ -116,10 +132,20 @@ def get_volatility_scores(texts: list[str], sentiment_scores: list[float]) -> li
 
     Returns: list[float | None]: List of volatility scores for each input text, where None indicates insufficient data to calculate volatility
     """
+    if not isinstance(texts, list):
+        raise ValueError("Input texts must be a list of strings.")
+    if not all(isinstance(text, str) for text in texts):
+        raise ValueError("All items in the input text list must be strings.")
+    if not texts:
+        raise ValueError("Input text list is empty.")
+    if not texts[0].strip():
+        raise ValueError("Input texts cannot be empty.")
     if not isinstance(sentiment_scores, list):
         raise ValueError("Sentiment scores must be a list of floats.")
     if not sentiment_scores:
         raise ValueError("Sentiment scores list is empty.")
+    if len(texts) != len(sentiment_scores):
+        raise ValueError("Texts and sentiment scores must have the same length.")
     volatility_scores = calculate_volatility_score(sentiment_scores)
     return volatility_scores
 
@@ -132,6 +158,24 @@ def get_high_volatility_flags(texts: list[str], volatility_scores: list[float | 
 
     Returns: list[bool | None]: List of high volatility flags for each input text, where None indicates insufficient data to determine high volatility
     """
+    if not isinstance(texts, list):
+        raise ValueError("Input texts must be a list of strings.")
+    if not all(isinstance(text, str) for text in texts):
+        raise ValueError("All items in the input text list must be strings.")
+    if not texts:
+        raise ValueError("Input text list is empty.")
+    if not texts[0].strip():
+        raise ValueError("Input texts cannot be empty.")
+    if not isinstance(volatility_scores, list):
+        raise ValueError("Volatility scores must be a list of floats or None.")
+    if not volatility_scores:
+        raise ValueError("Volatility scores list is empty.")
+    if len(texts) != len(volatility_scores):
+        raise ValueError("Texts and volatility scores must have the same length.")
+    if not isinstance(threshold, (int, float)):
+        raise ValueError("Threshold must be a number.")
+    if not 0 <= threshold <= 1:
+        raise ValueError("Threshold must be between 0 and 1.")
     high_volatility_flags = []
     for i in range(len(texts)):
         volatility_flag = high_volatility_flag(volatility_scores[i], threshold)
@@ -139,7 +183,7 @@ def get_high_volatility_flags(texts: list[str], volatility_scores: list[float | 
     return high_volatility_flags
 
 
-def build_enriched_posts(required_columns: list[str], model_path: str, vectorizer_path: str, weight: float, threshold: float, csv_path: str | None = None, text: str | None = None,) -> list[dict[str, str | int | float | None | list[str | float]]]:
+def build_enriched_posts(required_columns: list[str], model_path: str, vectorizer_path: str, weight: float, threshold: float, csv_path: str | None = None, text: str | None = None) -> list[dict[str, str | int | float | None | list[str | float]]]:
     """
     Build enriched posts with sentiment scores, classifier predictions, emotional swing, and volatility scores.
 
@@ -148,6 +192,14 @@ def build_enriched_posts(required_columns: list[str], model_path: str, vectorize
     Returns: list[dict[str, str | int | float | None | dict[str, float]]]: List of enriched posts with sentiment scores, classifier predictions, emotional swing, and volatility scores
     """
     # Implementation for building enriched posts goes here
+    if not isinstance(required_columns, list) or not all(isinstance(col, str) for col in required_columns):
+        raise ValueError("Required columns must be a list of strings.")
+    if not required_columns:
+        raise ValueError("Required columns list is empty.")
+    if not isinstance(model_path, str) or not isinstance(vectorizer_path, str):
+        raise ValueError("Model path and vectorizer path must be strings.")
+    if not model_path.strip() or not vectorizer_path.strip():
+        raise ValueError("Model path and vectorizer path must be provided.")
     if csv_path is None and text is None:
         raise ValueError("Either csv_path or text must be provided.")
     if csv_path is None and text is not None:
