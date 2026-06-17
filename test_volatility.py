@@ -1,5 +1,5 @@
 import pytest
-from affectlens.volatility import calculate_emotional_swing, calculate_volatility_score
+from affectlens.volatility import calculate_emotional_swing, calculate_volatility_score, high_volatility_flag
 
 def test_calculate_emotional_swing_empty_list():
     with pytest.raises(ValueError):
@@ -29,3 +29,17 @@ def test_calculate_volatility_score_sufficient_entries():
     result = calculate_volatility_score(sentiment_scores)
     assert len(result) == len(sentiment_scores)
     assert all(isinstance(score, (float, type(None))) for score in result)
+
+def test_high_volatility_flag_invalid_input():
+    with pytest.raises(ValueError):
+        high_volatility_flag(None, threshold=0.5)
+    with pytest.raises(ValueError):
+        high_volatility_flag("invalid_score", threshold=0.5)
+    with pytest.raises(ValueError):
+        high_volatility_flag(0.6, threshold="invalid_threshold")
+    with pytest.raises(ValueError):
+        high_volatility_flag(0.6, threshold=-0.1)
+
+def test_high_volatility_flag_valid_input():
+    assert high_volatility_flag(0.6, threshold=0.5) == True
+    assert high_volatility_flag(0.4, threshold=0.5) == False

@@ -2,16 +2,9 @@ from pathlib import Path
 import joblib
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.linear_model import LogisticRegression
-from data_loader import load_training_data
+from sklearn.multioutput import MultiOutputClassifier
+from affectlens.constants import EMOTIONS
 
-
-LABELS = {
-    0: "Stress",
-    1: "Depression",
-    2: "Bipolar disorder",
-    3: "Personality disorder",
-    4: "Anxiety"
-}
 
 def needs_training(model_path: str, vectorizer_path: str) -> bool:
     """
@@ -29,42 +22,46 @@ def needs_training(model_path: str, vectorizer_path: str) -> bool:
         return True
     if model_file.stat().st_size == 0 or vectorizer_file.stat().st_size == 0:
         return True
-    return not (model_file.exists() and vectorizer_file.exists())
+    return False
 
 
 
-def train(csv_path: str, model_path: str, vectorizer_path: str) -> None:
+def train(texts: list[str], labels: list[list[int]], model_path: str, vectorizer_path: str) -> None:
     """
     Trains the sentiment classifier using the provided CSV dataset and saves the model and vectorizer to disk.
 
-    Args: csv_path (str): Path to the CSV file containing the training data with 'text', 'target' and 'title'(optional) columns, model_path (str): Path to save the trained model file, vectorizer_path (str): Path to save the trained vectorizer file
+    Args: texts (list[str]): List of text strings for training, labels (list[list[int]]): List of lists of corresponding labels for training, model_path (str): Path to save the trained model file, vectorizer_path (str): Path to save the trained vectorizer file
     """
-    texts, combined_labels = load_training_data(csv_path)
-    if not model_path.strip() or not vectorizer_path.strip():
-        raise ValueError("Model path and vectorizer path must be provided.")
     if not isinstance(model_path, str) or not isinstance(vectorizer_path, str):
         raise ValueError("Model path and vectorizer path must be strings.")
+    if not model_path.strip() or not vectorizer_path.strip():
+        raise ValueError("Model path and vectorizer path must be provided.")
     if not Path(model_path).parent.exists() or not Path(vectorizer_path).parent.exists():
         raise FileNotFoundError("Model path or vectorizer path directory does not exist. Please provide valid paths.")
+    if not texts or not labels:
+        raise ValueError("Training texts and labels must be provided.")
+    if len(texts) != len(labels):
+        raise ValueError("The number of training texts and labels must be the same.")
     # Implementation for training the model goes here
     vectorizer = TfidfVectorizer()
     feature_matrix = vectorizer.fit_transform(texts)
 
     model = LogisticRegression()
-    model.fit(feature_matrix, combined_labels)
+    clf = MultiOutputClassifier(model)
+    clf.fit(feature_matrix, labels)
 
     # Save the trained model and vectorizer to disk
-    joblib.dump(model, model_path)
+    joblib.dump(clf, model_path)
     joblib.dump(vectorizer, vectorizer_path)
 
 
-def load(model_path: str, vectorizer_path: str) -> tuple[LogisticRegression, TfidfVectorizer]:
+def load(model_path: str, vectorizer_path: str) -> tuple[MultiOutputClassifier, TfidfVectorizer]:
     """
     Returns the loaded model and vectorizer from disk.
 
     Args: model_path (str): Path to the saved model file, vectorizer_path (str): Path to the saved vectorizer file
 
-    Returns: tuple[LogisticRegression, TfidfVectorizer]: The loaded model and vectorizer objects
+    Returns: tuple[MultiOutputClassifier, TfidfVectorizer]: The loaded model and vectorizer objects
     """
     if not Path(model_path).exists() or not Path(vectorizer_path).exists():
         raise FileNotFoundError("Model file or vectorizer file not found. Please train the model first.")
@@ -72,34 +69,50 @@ def load(model_path: str, vectorizer_path: str) -> tuple[LogisticRegression, Tfi
         raise ValueError("Model path or vectorizer path is not a file. Please provide valid file paths.")
     if Path(model_path).stat().st_size == 0 or Path(vectorizer_path).stat().st_size == 0:
         raise ValueError("Model file or vectorizer file is empty. Please train the model again.")
-    model = joblib.load(model_path)
+    clf = joblib.load(model_path)
     vectorizer = joblib.load(vectorizer_path)
-    return model, vectorizer
+    return clf, vectorizer
 
 
 
-def predict(text: str, model: LogisticRegression, vectorizer: TfidfVectorizer) -> tuple[str, float]:
+def predict(text: str, clf: MultiOutputClassifier, vectorizer: TfidfVectorizer, threshold: float) -> dict[str, float]:
     """
     Predicts the sentiment of the given text and returns the predicted label and confidence score.
 
-    Args: text (str): The input text string to classify, model (LogisticRegression): The loaded model object, vectorizer (TfidfVectorizer): The loaded vectorizer object
+    Args: text (str): The input text string to classify, clf (MultiOutputClassifier): The loaded model object, vectorizer (TfidfVectorizer): The loaded vectorizer object, threshold (float): The probability threshold for making predictions
 
-    Returns: tuple[str, float]: The predicted sentiment label ('Stress', 'Depression', 'Bipolar disorder', 'Personality disorder', 'Anxiety') and the confidence score (0.0 to 1.0)
+    Returns: dict[str, float]: Dictionary mapping predicted sentiment labels to their confidence scores
     """
+    if not isinstance(text, str):
+        raise ValueError("Input text must be a string.")
+    if not isinstance(threshold, (int, float)):
+        raise ValueError("Threshold must be a numeric value.")
     if not text.strip():
         raise ValueError("Input text is empty or whitespace only.")
-    if model is None or vectorizer is None:
+    if clf is None or vectorizer is None:
         raise ValueError("Model and vectorizer must be loaded before prediction.")
-    if not isinstance(model, LogisticRegression):
-        raise ValueError("Model must be an instance of LogisticRegression.")
+    if not isinstance(clf, MultiOutputClassifier):
+        raise ValueError("Model must be an instance of MultiOutputClassifier.")
     if not isinstance(vectorizer, TfidfVectorizer):
         raise ValueError("Vectorizer must be an instance of TfidfVectorizer.")
+    if not 0 <= threshold <= 1:
+        raise ValueError("Threshold must be between 0 and 1.")
     feature_vector = vectorizer.transform([text])
-    predictions = model.predict(feature_vector)
-    probabilities = model.predict_proba(feature_vector)
-    classifier_score = max(probabilities[0])
-    predicted_label = LABELS[predictions[0]]
-    return predicted_label, classifier_score
+    probabilities = clf.predict_proba(feature_vector)
+    predictions = {}
+    for i, emotion in enumerate(EMOTIONS):
+        proba = probabilities[i][0]
+        if len(proba) < 2:
+            positive_probability = proba[0]
+        else:
+            positive_probability = proba[1]
+        if positive_probability >= threshold:
+            predictions[emotion] = float(positive_probability)
+        elif positive_probability < threshold:
+            raise ValueError(f"Model is not confident enough to make a prediction for emotion: {emotion}. Consider lowering the threshold.")
+    return predictions
+
+
 
 
 

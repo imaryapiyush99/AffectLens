@@ -1,5 +1,4 @@
 #Row order is treated as chronological order. V2 will use Reddit API timestamps.
-
 import pandas as pd
 import warnings
 
@@ -37,3 +36,21 @@ def calculate_volatility_score(sentiment_scores: list[float]) -> list[float | No
     volatility_score = pd.Series(sentiment_scores).rolling(window=window_size).std()
     return [score if not pd.isna(score) else None for score in volatility_score.tolist()]
 
+def high_volatility_flag(volatility_score: float | None, threshold: float) -> bool:
+    """
+    Flag entries with volatility score above a specified threshold.
+
+    Args: volatility_score (float | None): The volatility score to check, threshold (float): Threshold for flagging high volatility
+
+    Returns: bool: Boolean flag indicating high volatility
+    """
+    if volatility_score is None:
+        raise ValueError("Volatility score is None. Cannot determine high volatility.")
+    if not isinstance(volatility_score, (int, float)):
+        raise ValueError("Volatility score must be a numeric value.")
+    if not isinstance(threshold, (int, float)):
+        raise ValueError("Threshold must be a numeric value.")
+    if not 0 <= threshold <= 1:
+        raise ValueError("Threshold must be between 0 and 1.")
+
+    return volatility_score > threshold

@@ -2,6 +2,8 @@ import re
 import nltk
 from nltk.corpus import stopwords
 from nltk.stem import WordNetLemmatizer
+from emoji import demojize
+from affectlens.constants import EMOTICONS
 
 # Download required NLTK data on first run
 nltk.download("stopwords", quiet=True)
@@ -16,6 +18,14 @@ def clean_text(text: str) -> str:
 
     Returns: str: Lowercase cleaned string with noise removed
     """
+    if not isinstance(text, str):
+        raise ValueError("Input text must be a string.")
+    if not text.strip():
+        raise ValueError("Input text is empty or whitespace only.")
+    # Replace emoticons with text
+    text = demojize(text)
+    for emoticon, replacement in EMOTICONS.items():
+        text = text.replace(emoticon, replacement)
     # Convert to lowercase
     text = text.lower()
     # Remove URLs
@@ -36,6 +46,10 @@ def tokenize(text: str) -> list[str]:
 
     Returns: list[str]: List of word tokens
     """
+    if not isinstance(text, str):
+        raise ValueError("Input text must be a string.")
+    if not text.strip():
+        raise ValueError("Input text is empty or whitespace only.")
     return text.split()
 
 
@@ -47,6 +61,15 @@ def remove_stopwords(tokens: list[str]) -> list[str]:
 
     Returns: list[str]: List of tokens with stop words removed
     """
+    if not isinstance(tokens, list):
+        raise ValueError("Input tokens must be a list of strings.")
+    if not tokens:
+        raise ValueError("Input tokens list is empty.")
+    if not all(isinstance(token, str) for token in tokens):
+        raise ValueError("All items in the input tokens list must be strings.")
+    if tokens[0].strip() == "":
+        raise ValueError("Input tokens list contains empty strings.")
+    
     negation = set(["not", "no", "never", "n't", "ain't", "nor", "don't", "doesn't", "didn't", "won't", "wouldn't", "can't", "couldn't", "shouldn't"])
 
     stop_words = set(stopwords.words("english"))
@@ -61,6 +84,14 @@ def lemmatize(tokens: list[str]) -> list[str]:
 
     Returns: list[str]: List of lemmatized tokens
     """
+    if not isinstance(tokens, list):
+        raise ValueError("Input tokens must be a list of strings.")
+    if not tokens:
+        raise ValueError("Input tokens list is empty.")
+    if not all(isinstance(token, str) for token in tokens):
+        raise ValueError("All items in the input tokens list must be strings.")
+    if tokens[0].strip() == "":
+        raise ValueError("Input tokens list contains empty strings.")
     lemmatizer = WordNetLemmatizer()
     return [lemmatizer.lemmatize(word) for word in tokens]
 
@@ -72,9 +103,15 @@ def preprocess(text: str) -> str:
 
     Returns: str: String of preprocessed tokens ready for analysis
     """
+    if not isinstance(text, str):
+        raise ValueError("Input text must be a string.")
+    if not text.strip():
+        raise ValueError("Input text is empty or whitespace only.")
     cleaned = clean_text(text)
     tokens = tokenize(cleaned)
     no_stopwords = remove_stopwords(tokens)
+    if not no_stopwords:
+        print("ALL TOKENS REMOVED:", text)
     lemmatized = lemmatize(no_stopwords)
     return " ".join(lemmatized)
   

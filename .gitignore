@@ -3,3 +3,6 @@ venv/
 __pycache__/
 *.pyc
 .DS_Store
+models/
+data/training_data/
+data/go_emotions_dataset.csv
