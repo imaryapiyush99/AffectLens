@@ -36,7 +36,7 @@ def calculate_volatility_score(sentiment_scores: list[float]) -> list[float | No
     volatility_score = pd.Series(sentiment_scores).rolling(window=window_size).std()
     return [score if not pd.isna(score) else None for score in volatility_score.tolist()]
 
-def high_volatility_flag(volatility_score: float | None, threshold: float) -> bool:
+def high_volatility_flag(volatility_score: float | None, threshold: float) -> bool | None:
     """
     Flag entries with volatility score above a specified threshold.
 
@@ -45,7 +45,7 @@ def high_volatility_flag(volatility_score: float | None, threshold: float) -> bo
     Returns: bool: Boolean flag indicating high volatility
     """
     if volatility_score is None:
-        raise ValueError("Volatility score is None. Cannot determine high volatility.")
+        return None
     if not isinstance(volatility_score, (int, float)):
         raise ValueError("Volatility score must be a numeric value.")
     if not isinstance(threshold, (int, float)):

@@ -1,4 +1,5 @@
 import argparse
+from email.mime import text
 from pathlib import Path
 from affectlens.constants import THRESHOLD, WEIGHT, TARGET_COLUMNS, PREDICTION_COLUMNS, OUTPUT_COLUMNS
 from affectlens.data_loader import  edit_training_csv, load_dataset, load_training_data, save_results
@@ -8,27 +9,30 @@ from affectlens.sentiment import ensemble_score
 from affectlens.volatility import calculate_emotional_swing, calculate_volatility_score, high_volatility_flag
 
 
-def get_preprocessed_text(csv_path: str, required_columns: list[str]) -> list[str]:
+def get_preprocessed_text(dataset: list[dict[str, str | int]]) -> list[str]:
     """
     Preprocess the text data from a CSV file.
 
     Args:
-        csv_path (str): Path to the CSV file, required_columns (list[str]): List of column names to include in the loaded dataset
+        dataset (list[dict[str, str | int]]): List of dictionaries containing the dataset
 
     Returns:
         list[str]: List of preprocessed text strings.
     """
-    if not isinstance(csv_path, str):
-        raise ValueError("CSV path must be a string.")
-    if not csv_path.strip():
-        raise ValueError("CSV path must be provided.")
-    if not Path(csv_path).is_file():
-        raise FileNotFoundError("CSV path is not a file. Please provide a valid file path.")
-    dataset = load_dataset(csv_path, required_columns)
+    if not isinstance(dataset, list):
+        raise ValueError("Dataset must be a list of dictionaries.")
+    if not dataset:
+        raise ValueError("Dataset is empty.")
+    if not all(isinstance(item, dict) for item in dataset):
+        raise ValueError("All items in the dataset must be dictionaries.")
     preprocessed_texts = []
     for item in dataset:
-        preprocessed_text = preprocess(item["text"])
-        preprocessed_texts.append(preprocessed_text)
+        try:
+            preprocessed_text = preprocess(item["text"])
+            preprocessed_texts.append(preprocessed_text)
+        except ValueError as e:
+            print("FAILED:", repr(item["text"]))
+            print("ERROR:", e)
     return preprocessed_texts
 
 
@@ -135,32 +139,41 @@ def get_high_volatility_flags(texts: list[str], volatility_scores: list[float | 
     return high_volatility_flags
 
 
-def build_enriched_posts(csv_path: str, required_columns: list[str], model_path: str, vectorizer_path: str, weight: float, threshold: float) -> list[dict[str, str | int | float | None | list[str | float]]]:
+def build_enriched_posts(required_columns: list[str], model_path: str, vectorizer_path: str, weight: float, threshold: float, csv_path: str | None = None, text: str | None = None,) -> list[dict[str, str | int | float | None | list[str | float]]]:
     """
     Build enriched posts with sentiment scores, classifier predictions, emotional swing, and volatility scores.
 
-    Args: csv_path (str): Path to the input CSV file containing the dataset with 'text', 'target' and 'title'(optional) columns, required_columns (list[str]): List of column names to include in the loaded dataset, model_path (str): Path to the saved model file, vectorizer_path (str): Path to the saved vectorizer file, weight (float): Weight for the sentiment scores, threshold (float): Threshold for the classifier predictions
+    Args: required_columns (list[str]): List of column names to include in the loaded dataset, model_path (str): Path to the saved model file, vectorizer_path (str): Path to the saved vectorizer file, weight (float): Weight for the sentiment scores, threshold (float): Threshold for the classifier predictions, csv_path (str): Path to the input CSV file containing the dataset with 'text', 'target' and 'title'(optional) columns, text (str): Single text input for processing
 
     Returns: list[dict[str, str | int | float | None | dict[str, float]]]: List of enriched posts with sentiment scores, classifier predictions, emotional swing, and volatility scores
     """
     # Implementation for building enriched posts goes here
-    if not isinstance(csv_path, str) or not isinstance(model_path, str) or not isinstance(vectorizer_path, str):
-        raise ValueError("CSV path, model path, and vectorizer path must be strings.")
-    if not csv_path.strip() or not model_path.strip() or not vectorizer_path.strip():
-        raise ValueError("All paths must be provided.")
-    if not Path(csv_path).is_file() or not Path(model_path).is_file() or not Path(vectorizer_path).is_file():
+    if csv_path is None and text is None:
+        raise ValueError("Either csv_path or text must be provided.")
+    if csv_path is None and text is not None:
+        dataset = [{"text": text}]
+    else:
+        dataset = load_dataset(csv_path, required_columns)
+    if csv_path is not None and text is not None:
+        raise ValueError("Provide either csv_path or text, not both.")
+    if csv_path is not None and not isinstance(csv_path, str):
+        raise ValueError("CSV path must be a string.")
+    if not isinstance(model_path, str) or not isinstance(vectorizer_path, str):
+        raise ValueError("Model path and vectorizer path must be strings.")
+
+    if (csv_path is not None and not Path(csv_path).is_file()) or not Path(model_path).is_file() or not Path(vectorizer_path).is_file():
         raise FileNotFoundError("One or more specified paths are not valid files. Please provide valid file paths.")
     if not isinstance(weight, (int, float)) or not isinstance(threshold, (int, float)):
         raise ValueError("Weight and threshold must be numbers.")
     if not 0 <= weight <= 1 or not 0 <= threshold <= 1:
         raise ValueError("Weight and threshold must be between 0 and 1.")
-    dataset = load_dataset(csv_path, required_columns)
-    preprocessed_texts = get_preprocessed_text(csv_path, required_columns)
+    preprocessed_texts = get_preprocessed_text(dataset)
     ensemble_scores = get_ensemble_scores(preprocessed_texts, weight)
     classifier_predictions = get_classifier_predictions(preprocessed_texts, model_path, vectorizer_path, threshold)
     emotional_swing_results = get_emotional_swing(preprocessed_texts, ensemble_scores)
     volatility_scores = get_volatility_scores(preprocessed_texts, ensemble_scores)
     high_volatility_flags = get_high_volatility_flags(preprocessed_texts, volatility_scores, threshold)
+
 
     # Combine all the results into a single list of dictionaries
     enriched_posts = []
@@ -197,8 +210,9 @@ def main() -> None:
 
     # Argument parsing for command-line execution
     parser = argparse.ArgumentParser(description="AffectLens: A tool for analyzing emotional volatility in text data.")
-    parser.add_argument("--target_columns", type=str, nargs="+", default=TARGET_COLUMNS, help="List of target columns to include in the dataset.")
-    parser.add_argument("--input_csv", type=str, required=True, help="Path to the input CSV file containing the dataset with 'text' column.")
+    parser.add_argument("--text", type=str, required=False, help="Input text string for sentiment and volatility analysis.")
+    parser.add_argument("--required_columns", type=str, nargs="+", default=TARGET_COLUMNS, help="List of target columns to include in the dataset.")
+    parser.add_argument("--input_csv", type=str, required=False, help="Path to the input CSV file containing the dataset with 'text' column.")
     parser.add_argument("--model_path", type=str, required=True, help="Path to save the trained model file.")
     parser.add_argument("--vectorizer_path", type=str, required=True, help="Path to save the trained vectorizer file.")
     parser.add_argument("--output_csv", type=str, required=False, help="Path to save the results CSV file with enriched data and metrics.")
@@ -207,23 +221,26 @@ def main() -> None:
     args = parser.parse_args()
 
     # Call the main workflow function with the provided arguments
-    final_input_csv = Path(args.input_csv).expanduser().resolve()
+    final_input_csv = Path(args.input_csv).expanduser().resolve() if args.input_csv else None  
     final_model_path = Path(args.model_path).expanduser().resolve()
     final_vectorizer_path = Path(args.vectorizer_path).expanduser().resolve()
-    final_output_csv = Path(args.output_csv).expanduser().resolve() if args.output_csv else None
+    final_output_csv =Path(args.output_csv).expanduser().resolve() if args.output_csv else None
 
     try:
-        if needs_training(args.model_path, args.vectorizer_path):
+        if needs_training(args.model_path, args.vectorizer_path) and args.input_csv:
             training_csv = edit_training_csv(args.input_csv, "/Users/imaryapiyush99/AffectLens/data/training_data/training_data.csv")
-            training_dataset = load_training_data(training_csv, args.target_columns)
+            training_dataset = load_training_data(training_csv, args.required_columns)
             texts, labels = map(list, zip(*training_dataset))
             train(texts, labels, args.model_path, args.vectorizer_path)
-            enriched_posts = build_enriched_posts(str(final_input_csv), args.target_columns, str(final_model_path), str(final_vectorizer_path), args.weight, args.threshold)
+            enriched_posts = build_enriched_posts(csv_path=str(final_input_csv) if final_input_csv else None, text=args.text, required_columns=args.required_columns, model_path=str(final_model_path), vectorizer_path=str(final_vectorizer_path), weight=args.weight, threshold=args.threshold)
+        elif needs_training(args.model_path, args.vectorizer_path) and not args.input_csv:
+            raise ValueError("Model and vectorizer need to be trained, but no input CSV file was provided for training. Please provide a valid input CSV file.")    
         else:
-            enriched_posts = build_enriched_posts(str(final_input_csv), PREDICTION_COLUMNS, str(final_model_path), str(final_vectorizer_path), args.weight, args.threshold)
+            enriched_posts = build_enriched_posts(csv_path=str(final_input_csv) if final_input_csv else None, text=args.text, required_columns=PREDICTION_COLUMNS, model_path=str(final_model_path), vectorizer_path=str(final_vectorizer_path), weight=args.weight, threshold=args.threshold)
         if enriched_posts and final_output_csv:
             save_results(str(final_output_csv), OUTPUT_COLUMNS, enriched_posts)
-        print(enriched_posts)    
+        else:    
+            print(enriched_posts)    
     except ValueError as ve:
         print(f"ValueError: {ve}")
     except FileNotFoundError as fnfe:

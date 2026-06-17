@@ -100,6 +100,8 @@ def predict(text: str, clf: MultiOutputClassifier, vectorizer: TfidfVectorizer, 
     feature_vector = vectorizer.transform([text])
     probabilities = clf.predict_proba(feature_vector)
     predictions = {}
+    best_emotion = None
+    best_probability = 0.0
     for i, emotion in enumerate(EMOTIONS):
         proba = probabilities[i][0]
         if len(proba) < 2:
@@ -108,9 +110,14 @@ def predict(text: str, clf: MultiOutputClassifier, vectorizer: TfidfVectorizer, 
             positive_probability = proba[1]
         if positive_probability >= threshold:
             predictions[emotion] = float(positive_probability)
-        elif positive_probability < threshold:
-            raise ValueError(f"Model is not confident enough to make a prediction for emotion: {emotion}. Consider lowering the threshold.")
+        if positive_probability > best_probability:
+            best_probability = positive_probability
+            best_emotion = emotion
+    if not predictions and best_emotion is not None:
+        predictions[best_emotion] = float(best_probability)
+
     return predictions
+
 
 
 

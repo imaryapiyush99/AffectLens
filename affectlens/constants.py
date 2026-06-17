@@ -4,7 +4,7 @@ TARGET_COLUMNS = ["text", "Happiness", "Sadness", "Anger", "Fear", "Disgust", "S
 
 PREDICTION_COLUMNS = ["text"]
 
-OUTPUT_COLUMNS = ["text", "predicted_labels", "ensemble_score", "emotional_swing", "volatility_score", "high_volatility_flag"]
+OUTPUT_COLUMNS = ["Text", "Ensemble_score", "Emotion", "Emotional_swing", "Volatility_score", "High_volatility_flag"]
 
 EMOTICONS = {
     ":)": " happy ",
@@ -37,4 +37,3 @@ EMOTIONS: list[str] = list(EMOTION_MAPPING.keys())
 WEIGHT: float = 0.3
 
 THRESHOLD: float = 0.3
-

@@ -111,7 +111,7 @@ def preprocess(text: str) -> str:
     tokens = tokenize(cleaned)
     no_stopwords = remove_stopwords(tokens)
     if not no_stopwords:
-        print("ALL TOKENS REMOVED:", text)
+        no_stopwords = tokens  # If all tokens are stop words, keep the original tokens to avoid empty input for lemmatization
     lemmatized = lemmatize(no_stopwords)
     return " ".join(lemmatized)
   
