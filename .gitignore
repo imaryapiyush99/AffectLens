@@ -8,3 +8,9 @@ data/training_data/
 data/go_emotions_dataset.csv
 results/*.csv
 *.pkl
+data/training.1600000.processed.noemoticon.csv
+data/converted.csv
+data/converted_data.csv
+data/test_data/
+data/validation_data/
+data/SST

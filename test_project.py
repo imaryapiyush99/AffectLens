@@ -1,6 +1,6 @@
 from pathlib import Path
 import pytest
-from project import get_preprocessed_text, get_ensemble_scores, get_classifier_predictions, get_emotional_swing, get_volatility_scores, get_high_volatility_flags, build_enriched_posts
+from project import get_preprocessed_text, get_ensemble_scores, get_classifier_predictions, get_emotional_swing, get_volatility_scores, get_high_volatility_flags, build_enriched_posts, dataset_is_training_data
 import joblib
 from sklearn.linear_model import LogisticRegression
 from sklearn.feature_extraction.text import TfidfVectorizer
@@ -365,16 +365,8 @@ def test_build_enriched_posts_invalid_input(tmp_path):
         build_enriched_posts(["text", "This is a test."], str(model_path), str(vectorizer_path), 0.5, 0.5, "   ", None)  # Assuming whitespace csv_path is invalid input
                             
 
+
 def test_build_enriched_posts_valid_input(tmp_path):
-    # Create a dummy model and vectorizer for testing
-    input_texts = ["This is a test.", "Another test."]
-    input_scores = [0.6, 0.4]
-    threshold = 0.5
-    expected_output = [True, False]  # Assuming volatility score of 0.2 is below the threshold of 0.5
-    assert len(get_high_volatility_flags(input_texts, input_scores, threshold)) == len(expected_output)
-
-
-def test_build_enriched_posts_invalid_input(tmp_path):
     # Test that build_enriched_posts raises a ValueError when given invalid input
     texts = [
         "happy",
@@ -417,4 +409,3 @@ def test_build_enriched_posts_invalid_input(tmp_path):
     joblib.dump(model, model_path)
     joblib.dump(vectorizer, vectorizer_path)
     assert len(build_enriched_posts(["text"], str(model_path), str(vectorizer_path), 0.5, 0.5, None, "This is a test.")) == 1
-                         

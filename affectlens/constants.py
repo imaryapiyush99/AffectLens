@@ -32,8 +32,14 @@ EMOTION_MAPPING: dict[str, list[str]] = {
     "Desire": ["desire"],
 }
 
+SENTIMENT_MAPPING: dict[str, int] = {
+    "negative": 0,
+    "neutral": 2,
+    "positive": 4
+}
+
 EMOTIONS: list[str] = list(EMOTION_MAPPING.keys())
 
-WEIGHT: float = 0.3
+WEIGHT: float = 0.65
 
-THRESHOLD: float = 0.3
+THRESHOLD: float = 0.25
