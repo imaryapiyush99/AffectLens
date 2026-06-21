@@ -153,7 +153,9 @@ def test_get_classifier_predictions_valid_input(tmp_path):
     joblib.dump(model, model_path)
     joblib.dump(vectorizer, vectorizer_path)
 
-    assert len(get_classifier_predictions(texts, str(model_path), str(vectorizer_path), 0.5)) == len(texts)
+    predictions, classifier_scores = get_classifier_predictions(texts, str(model_path), str(vectorizer_path), 0.5)
+    assert len(predictions) == len(texts)
+    assert len(classifier_scores) == len(texts)
 
 def test_get_emotional_swing_invalid_input():
     # Test that get_emotional_swing raises a ValueError when given invalid input

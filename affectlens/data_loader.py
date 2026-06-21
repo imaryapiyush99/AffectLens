@@ -1,7 +1,5 @@
 from pathlib import Path
 import csv, random
-
-from pyparsing import line
 from affectlens.constants import EMOTION_MAPPING, GOEMOTIONS_COLUMNS, TARGET_COLUMNS, EMOTIONS
 
 def validate_csv(csv_path: str, required_columns: list[str]) -> None:

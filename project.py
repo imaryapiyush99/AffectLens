@@ -1,5 +1,6 @@
-import argparse
+import argparse, platform, os, subprocess
 from pathlib import Path
+from collections import Counter
 from affectlens.constants import THRESHOLD, WEIGHT, TARGET_COLUMNS, PREDICTION_COLUMNS, OUTPUT_COLUMNS
 from affectlens.data_loader import  edit_training_csv, split_dataset, load_dataset, load_labeled_data, save_results, load_sst_dataset
 from affectlens.preprocessing import preprocess
@@ -7,6 +8,8 @@ from affectlens.classifier import needs_training, train, load, predict
 from affectlens.sentiment import ensemble_score
 from affectlens.volatility import calculate_emotional_swing, calculate_volatility_score, high_volatility_flag
 from affectlens.evaluate import evaluate_classifier, optimize_threshold, optimize_ensemble_weight, compare_sentiment_models
+from affectlens.visualization import plot_sentiment_trend, plot_volatility_trend, plot_emotional_swing_trend, plot_emotion_distribution, plot_emotion_heatmap, plot_emotion_transition_matrix
+
 
 
 def get_preprocessed_text(dataset: list[dict[str, str | int]]) -> list[str]:
@@ -64,13 +67,13 @@ def get_ensemble_scores(texts: list[str], weight: float) -> list[float]:
     return ensemble_scores    
 
 
-def get_classifier_predictions(texts: list[str], model_path: str, vectorizer_path: str, threshold: float) -> list[list[str]]:
+def get_classifier_predictions(texts: list[str], model_path: str, vectorizer_path: str, threshold: float) -> tuple[list[list[str]], list[dict[str, float]]]:
     """"
     Get the classifier predictions and confidence scores for a list of preprocessed text strings.
 
     Args: texts (list[str]): List of preprocessed text strings, model_path (str): Path to the saved model file, vectorizer_path (str): Path to the saved vectorizer file, threshold (float): Probability threshold for making predictions
 
-    Results: list[tuple[str, float]]: List of tuples containing the predicted sentiment label and confidence score for each input text
+    Results: tuple[list[list[str]], list[dict[str, float]]]: A tuple containing two lists: the first list contains the predicted emotion labels for each input text, and the second list contains the confidence scores for each emotion label for each input text.
     """
     if not isinstance(texts, list):
         raise ValueError("Input texts must be a list of strings.")
@@ -92,11 +95,12 @@ def get_classifier_predictions(texts: list[str], model_path: str, vectorizer_pat
         raise ValueError("Model path and vectorizer path must be valid file paths.")
     model, vectorizer = load(model_path, vectorizer_path)
     predictions = []
+    classifier_scores = []
     for text in texts:
         prediction = predict(text, model, vectorizer, threshold)
-        predicts = [f"{emotion} ({score:.2f})" for emotion, score in prediction.items()]
-        predictions.append(predicts)
-    return predictions
+        classifier_scores.append(prediction)
+        predictions.append((list(prediction.keys())))
+    return predictions, classifier_scores
 
 
 def get_emotional_swing(texts: list[str], sentiment_scores: list[float]) -> list[float | None]:
@@ -184,7 +188,7 @@ def get_high_volatility_flags(texts: list[str], volatility_scores: list[float | 
     return high_volatility_flags
 
 
-def build_enriched_posts(required_columns: list[str], model_path: str, vectorizer_path: str, weight: float, threshold: float, csv_path: str | None = None, text: str | None = None) -> list[dict[str, str | int | float | None | list[str | float]]]:
+def build_enriched_posts(required_columns: list[str], model_path: str, vectorizer_path: str, weight: float, threshold: float, csv_path: str | None = None, text: str | None = None) -> list[dict[str, str | int | float | None | list[str | float] | dict[str, float]]]:
     """
     Build enriched posts with sentiment scores, classifier predictions, emotional swing, and volatility scores.
 
@@ -222,7 +226,7 @@ def build_enriched_posts(required_columns: list[str], model_path: str, vectorize
         raise ValueError("Weight and threshold must be between 0 and 1.")
     preprocessed_texts = get_preprocessed_text(dataset)
     ensemble_scores = get_ensemble_scores(preprocessed_texts, weight)
-    classifier_predictions = get_classifier_predictions(preprocessed_texts, model_path, vectorizer_path, threshold)
+    classifier_predictions, classifier_scores = get_classifier_predictions(preprocessed_texts, model_path, vectorizer_path, threshold)
     emotional_swing_results = get_emotional_swing(preprocessed_texts, ensemble_scores)
     volatility_scores = get_volatility_scores(preprocessed_texts, ensemble_scores)
     high_volatility_flags = get_high_volatility_flags(preprocessed_texts, volatility_scores, threshold)
@@ -235,6 +239,7 @@ def build_enriched_posts(required_columns: list[str], model_path: str, vectorize
             "Text": dataset[i]["text"],
             "Ensemble_score": ensemble_scores[i],
             "Emotion": classifier_predictions[i],
+            "Emotion_scores": classifier_scores[i],
             "Emotional_swing": emotional_swing_results[i],
             "Volatility_score": volatility_scores[i],
             "High_volatility_flag": high_volatility_flags[i]
@@ -264,6 +269,50 @@ def dataset_is_training_data(csv_path: str) -> bool:
     ]
     return csv_file in training_paths
 
+def print_summary(enriched_posts: list[dict[str, str | int | float | None | dict[str, float]]]) -> None:
+    """
+    Print a summary of the enriched posts, including counts of emotions, average sentiment scores, and volatility metrics.
+
+    Args: enriched_posts (list[dict[str, str | int | float | None | dict[str, float]]]): List of enriched posts with sentiment scores, classifier predictions, emotional swing, and volatility scores
+    """
+    if not isinstance(enriched_posts, list):
+        raise ValueError("Enriched posts must be a list of dictionaries.")
+    if not enriched_posts:
+        raise ValueError("Enriched posts list is empty.")
+    if not all(isinstance(post, dict) for post in enriched_posts):
+        raise ValueError("All items in the enriched posts list must be dictionaries.")
+    total_posts = len(enriched_posts)
+
+    sentiments= [post["Ensemble_score"] for post in enriched_posts if post["Ensemble_score"] is not None]
+    volatilities = [post["Volatility_score"] for post in enriched_posts if post["Volatility_score"] is not None]
+    swings = [post["Emotional_swing"] for post in enriched_posts if post["Emotional_swing"] is not None]
+    emotions = [emotion for post in enriched_posts for emotion in post["Emotion"] if emotion is not None]
+    
+    high_volatility_count = sum(1 for post in enriched_posts if post["High_volatility_flag"] is True)
+    average_sentiment = sum(sentiments) / len(sentiments) if sentiments else 0.0
+    average_volatility = sum(volatilities) / len(volatilities) if volatilities else 0.0
+    average_swing = sum(swings) / len(swings) if swings else 0.0
+    most_common_emotion = Counter(emotions).most_common(1)[0][0] if emotions else None
+    most_positive_post = max(enriched_posts, key=lambda post: post["Ensemble_score"])
+    most_negative_post = min(enriched_posts, key=lambda post: post["Ensemble_score"])
+    high_volatility_percentage = (high_volatility_count / total_posts) * 100 if total_posts > 0 else 0.0
+
+    print("\n========== AFFECTLENS SUMMARY ==========")
+    print(f"Posts analyzed: {total_posts:,}")
+    print()
+    print(f"Average sentiment: {average_sentiment:.2f}")
+    print(f"Average volatility: {average_volatility:.2f}")
+    print(f"Average emotional swing: {average_swing:.2f}")
+    print()
+    print(f"Most common emotion: {most_common_emotion}")
+    print(f"Most positive post: {most_positive_post['Text']} (Score: {most_positive_post['Ensemble_score']:.2f})")
+    print(f"Most negative post: {most_negative_post['Text']} (Score: {most_negative_post['Ensemble_score']:.2f})")
+    print(
+        f"High-volatility posts: "
+        f"{high_volatility_count:,} "
+        f"({high_volatility_percentage:.1f}%)"
+    )
+    print("========================================\n")
 
 
 def main() -> None:
@@ -293,6 +342,10 @@ def main() -> None:
     parser.add_argument("--weight", type=float, default=WEIGHT, help="Weight for combining VADER and TextBlob sentiment scores.")
     parser.add_argument("--threshold", type=float, default=THRESHOLD, help="Threshold for classifying high volatility.")
     parser.add_argument("--evaluate", action="store_true", help="Flag to evaluate the trained model on a test set and show the results.")
+    parser.add_argument("--optimize_threshold", action="store_true", help="Flag to optimize the threshold for the classifier based on validation data.")
+    parser.add_argument("--optimize_weight", action="store_true", help="Flag to optimize the ensemble weight for combining VADER and TextBlob scores based on validation data.")
+    parser.add_argument("--compare_models", action="store_true", help="Flag to compare the performance of different sentiment models on the validation dataset.")
+    parser.add_argument("--visualize", action="store_true", help="Flag to visualize the results.")
     args = parser.parse_args()
 
     # Call the main workflow function with the provided argument
@@ -302,35 +355,14 @@ def main() -> None:
     final_vectorizer_path = Path(args.vectorizer_path).expanduser().resolve()
     final_output_csv =Path(args.output_csv).expanduser().resolve() if args.output_csv else None
 
-    dev_data = load_sst_dataset(
-        dataset_sentences_path=str(Path(__file__).parent / "data" / "SST" / "datasetSentences.txt"),
-        dataset_split_path=str(Path(__file__).parent / "data" / "SST" / "datasetSplit.txt"),
-        dictionary_path=str(Path(__file__).parent / "data" / "SST" / "dictionary.txt"),
-        sentiment_labels_path=str(Path(__file__).parent / "data" / "SST" / "sentiment_labels.txt"),
-        split=3
-    )
-    best_threshold, best_micro_f1 = optimize_threshold(
-        validation_csv_path=str(Path(__file__).parent / "data" / "training_data" / "validation.csv"),
-        target_columns=TARGET_COLUMNS,
-        model_path=str(args.model_path),
-        vectorizer_path=str(args.vectorizer_path)
-    )
-    print(f"Optimal Threshold: {best_threshold}, Best Micro F1-Score: {best_micro_f1}")
-    
-    # Additional code for optimizing ensemble weight and running the main workflow can be added here
-    best_weight, mae = optimize_ensemble_weight(dataset=dev_data)
-    print(f"Optimal Ensemble Weight: {best_weight}, Best MAE: {mae}")
-
-    compared_sentiment_results = compare_sentiment_models(dataset=dev_data)
-    print("Sentiment Model Comparison Results:", compared_sentiment_results)
-
-
     try:
         requires_training = needs_training(args.model_path, args.vectorizer_path)
-        
+        built_enriched_posts = False
+        # One Input Validation: Ensure that at least one of the required inputs (text or input CSV) is provided when the model needs training
         if not args.text and not args.input_csv:
             raise ValueError("No input provided. Please provide either an input text string or a path to an input CSV file.")
         
+        # Training Validation: If the model needs training, ensure that an input CSV file is provided for training
         if requires_training and args.input_csv:
             converted_csv_path = edit_training_csv(str(final_input_csv), str(data_dir / "converted.csv"))
             train_csv_path, _, _ = split_dataset(converted_csv_path=str(converted_csv_path), train_csv_path=str(data_dir / "training_data" / "train.csv"), validation_csv_path=str(data_dir / "training_data" / "validation.csv"), test_csv_path=str(data_dir / "training_data" / "test.csv"), random_seed=42)
@@ -340,6 +372,7 @@ def main() -> None:
         elif requires_training:
             raise ValueError("Model and vectorizer need to be trained, but no input CSV file was provided for training. Please provide a valid input CSV file.")    
         
+        # Evaluation Validation: If the evaluation flag is set, ensure that an input CSV file is provided for evaluation
         if args.evaluate and final_input_csv:
             if dataset_is_training_data(str(final_input_csv)):
                 converted_csv_path = edit_training_csv(str(final_input_csv), str(data_dir / "converted.csv"))
@@ -352,11 +385,94 @@ def main() -> None:
         if args.evaluate and not final_input_csv:
             raise ValueError("Evaluation flag is set, but no input CSV file was provided for evaluation. Please provide a valid input CSV file for evaluation.")    
         
-        enriched_posts = build_enriched_posts(csv_path=str(final_input_csv) if final_input_csv else None, text=args.text, required_columns=PREDICTION_COLUMNS, model_path=str(final_model_path), vectorizer_path=str(final_vectorizer_path), weight=args.weight, threshold=args.threshold)
+        # Optimize Threshold Validation: If the optimize threshold flag is set, ensure that an input CSV file is provided for optimizing the threshold
+        if args.optimize_threshold and final_input_csv:
+            if dataset_is_training_data(str(final_input_csv)):
+                converted_csv_path = edit_training_csv(str(final_input_csv), str(data_dir / "converted.csv"))
+                _, validation_csv_path, _ = split_dataset(converted_csv_path=str(converted_csv_path), train_csv_path=str(data_dir / "training_data" / "train.csv"), validation_csv_path=str(data_dir / "training_data" / "validation.csv"), test_csv_path=str(data_dir / "training_data" / "test.csv"), random_seed=42)
+                best_threshold, best_micro_f1 = optimize_threshold(str(validation_csv_path), TARGET_COLUMNS, str(final_model_path), str(final_vectorizer_path))
+            else:
+                best_threshold, best_micro_f1 = optimize_threshold(str(final_input_csv), TARGET_COLUMNS, str(final_model_path), str(final_vectorizer_path))
+            print(f"Optimal Threshold: {best_threshold}, Best Micro F1-Score: {best_micro_f1}")
+            return
+        if args.optimize_threshold and not final_input_csv:
+            raise ValueError("Optimize threshold flag is set, but no input CSV file was provided for optimization. Please provide a valid input CSV file for optimizing the threshold.")
+
+        # Optimize Ensemble Weight Validation: If the optimize ensemble weight flag is set, ensure that an input CSV file is provided for optimizing the ensemble weight    
+        if args.optimize_weight and final_input_csv:
+            if dataset_is_training_data(str(final_input_csv)):
+                converted_csv_path = edit_training_csv(str(final_input_csv), str(data_dir / "converted.csv"))
+                _, validation_csv_path, _ = split_dataset(converted_csv_path=str(converted_csv_path), train_csv_path=str(data_dir / "training_data" / "train.csv"), validation_csv_path=str(data_dir / "training_data" / "validation.csv"), test_csv_path=str(data_dir / "training_data" / "test.csv"), random_seed=42)
+                best_weight, mae = optimize_ensemble_weight(str(validation_csv_path), TARGET_COLUMNS, str(final_model_path), str(final_vectorizer_path))
+            else:
+                best_weight, mae = optimize_ensemble_weight(str(final_input_csv), TARGET_COLUMNS, str(final_model_path), str(final_vectorizer_path))
+            print(f"Optimal Ensemble Weight: {best_weight}, Best MAE: {mae}")
+            return
+        if args.optimize_weight and not final_input_csv:
+            raise ValueError("Optimize ensemble weight flag is set, but no input CSV file was provided for optimization. Please provide a valid input CSV file for optimizing the ensemble weight.")
+        
+        # Compare Models Validation: If the compare models flag is set, ensure that an input CSV file is provided for comparing the sentiment models
+        if args.compare_models and final_input_csv:
+            if dataset_is_training_data(str(final_input_csv)):
+                converted_csv_path = edit_training_csv(str(final_input_csv), str(data_dir / "converted.csv"))
+                _, validation_csv_path, _ = split_dataset(converted_csv_path=str(converted_csv_path), train_csv_path=str(data_dir / "training_data" / "train.csv"), validation_csv_path=str(data_dir / "training_data" / "validation.csv"), test_csv_path=str(data_dir / "training_data" / "test.csv"), random_seed=42)
+                compared_sentiment_results = compare_sentiment_models(str(validation_csv_path), TARGET_COLUMNS, str(final_model_path), str(final_vectorizer_path))
+            else:
+                compared_sentiment_results = compare_sentiment_models(str(final_input_csv), TARGET_COLUMNS, str(final_model_path), str(final_vectorizer_path))
+            print("Sentiment Model Comparison Results:", compared_sentiment_results)
+            return
+        if args.compare_models and not final_input_csv:
+            raise ValueError("Compare models flag is set, but no input CSV file was provided for comparison. Please provide a valid input CSV file for comparing sentiment models.")
+        
+        # Visualization Validation: If the visualize flag is set, ensure that an input CSV file is provided for visualization, as visualization is intended for multi-post analysis
+        if args.visualize:
+            visualization_dir = Path("visualizations")
+            visualization_dir.mkdir(exist_ok=True)
+            enriched_posts = build_enriched_posts(csv_path=str(final_input_csv) if final_input_csv else None, text=args.text if args.text else None, required_columns=PREDICTION_COLUMNS, model_path=str(final_model_path), vectorizer_path=str(final_vectorizer_path), weight=args.weight, threshold=args.threshold)
+            built_enriched_posts = True
+            print_summary(enriched_posts)
+
+            if final_input_csv:
+                figures = {
+                    "sentiment_trend.png": plot_sentiment_trend(enriched_posts),
+                    "volatility_trend.png": plot_volatility_trend(enriched_posts, THRESHOLD),
+                    "emotional_swing_trend.png": plot_emotional_swing_trend(enriched_posts),
+                    "emotion_distribution.png": plot_emotion_distribution(enriched_posts),
+                    "emotion_heatmap.png": plot_emotion_heatmap(enriched_posts),
+                    "emotion_transition_matrix.png": plot_emotion_transition_matrix(enriched_posts),
+                }
+                for filename, figure in figures.items():
+                    output_path = visualization_dir / filename
+                    figure.savefig(output_path, dpi=300, bbox_inches="tight")
+                    print(f"Saved: {output_path}")
+            else:
+                print("Visualization skipped. Multi-post visualizations require a CSV containing multiple posts; only a single text input was provided.")       
+                return
+            os_name = platform.system()
+            open_files = input("\nOpen generated visualizations? (y/n): ").strip().lower()
+            if open_files == "y":
+                for filename in figures.keys():
+                    output_path = visualization_dir / filename
+                    if output_path.is_file():
+                        if os_name == "Windows":
+                            os.startfile(output_path)
+                        elif os_name == "Darwin":  # macOS
+                            subprocess.run(["open", str(output_path)])
+                        elif os_name == "Linux":
+                            subprocess.run(["xdg-open", str(output_path)])
+                        else:
+                            print(f"Unsupported OS: {os_name}. Cannot open files automatically.")
+                    else:
+                        print(f"File not found: {output_path}")
+                        
+
+        if not built_enriched_posts:                       
+            enriched_posts = build_enriched_posts(csv_path=str(final_input_csv) if final_input_csv else None, text=args.text if args.text else None, required_columns=PREDICTION_COLUMNS, model_path=str(final_model_path), vectorizer_path=str(final_vectorizer_path), weight=args.weight, threshold=args.threshold)
         if enriched_posts and final_output_csv:
             save_results(str(final_output_csv), OUTPUT_COLUMNS, enriched_posts)
-        else:    
+        elif enriched_posts and not args.visualize:    
             print(enriched_posts)    
+
     except ValueError as ve:
         print(f"ValueError: {ve}")
     except FileNotFoundError as fnfe:
