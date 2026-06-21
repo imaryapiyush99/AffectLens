@@ -293,16 +293,15 @@ Current status:
 ### Machine Learning
 - scikit-learn
 
-### Data Processing
-- pandas
-- NumPy
-
 ### NLP
 - TextBlob
-- VADER
+- VADER Sentiment
 
 ### Visualization
 - Matplotlib
+
+### Model Persistence
+- Joblib
 
 ### Testing
 - pytest
