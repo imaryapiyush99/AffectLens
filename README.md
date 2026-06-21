@@ -253,7 +253,6 @@ Shows how dominant emotions transition from one post to the next.
 
 Add screenshots after generating visualizations:
 
-```markdown
 ### Emotion Distribution
 
 ![Emotion Distribution](README_assets/emotion_distribution.png)
@@ -265,7 +264,6 @@ Add screenshots after generating visualizations:
 ### Volatility Trend
 
 ![Volatility Trend](README_assets/volatility_trend.png)
-```
 
 ---
 
