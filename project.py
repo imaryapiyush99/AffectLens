@@ -1,4 +1,4 @@
-import argparse, platform, os, subprocess
+import argparse, platform, os, subprocess 
 from pathlib import Path
 from collections import Counter
 from affectlens.constants import THRESHOLD, WEIGHT, TARGET_COLUMNS, PREDICTION_COLUMNS, OUTPUT_COLUMNS
@@ -269,6 +269,26 @@ def dataset_is_training_data(csv_path: str) -> bool:
     ]
     return csv_file in training_paths
 
+def sst_dataset_available(data_dir: Path) -> bool:
+    """
+    Check if the SST dataset is available in the specified directory.
+
+    Args: data_dir (Path): Path to the directory containing the SST dataset
+
+    Returns: bool: True if all required files are present, False otherwise
+    """
+    required_files = [
+        "datasetSentences.txt",
+        "datasetSplit.txt",
+        "dictionary.txt",
+        "sentiment_labels.txt",
+    ]
+
+    return all(
+        (data_dir / "SST" / file).is_file()
+        for file in required_files
+    )
+
 def print_summary(enriched_posts: list[dict[str, str | int | float | None | dict[str, float]]]) -> None:
     """
     Print a summary of the enriched posts, including counts of emotions, average sentiment scores, and volatility metrics.
@@ -341,10 +361,9 @@ def main() -> None:
     parser.add_argument("--output_csv", type=str, required=False, help="Path to save the results CSV file with enriched data and metrics.")
     parser.add_argument("--weight", type=float, default=WEIGHT, help="Weight for combining VADER and TextBlob sentiment scores.")
     parser.add_argument("--threshold", type=float, default=THRESHOLD, help="Threshold for classifying high volatility.")
-    parser.add_argument("--evaluate", action="store_true", help="Flag to evaluate the trained model on a test set and show the results.")
+    parser.add_argument("--evaluate", action="store_true", help="Flag to evaluate the trained model on a test set, compare sentiment analysis models and show the results.")
     parser.add_argument("--optimize_threshold", action="store_true", help="Flag to optimize the threshold for the classifier based on validation data.")
     parser.add_argument("--optimize_weight", action="store_true", help="Flag to optimize the ensemble weight for combining VADER and TextBlob scores based on validation data.")
-    parser.add_argument("--compare_models", action="store_true", help="Flag to compare the performance of different sentiment models on the validation dataset.")
     parser.add_argument("--visualize", action="store_true", help="Flag to visualize the results.")
     args = parser.parse_args()
 
@@ -362,15 +381,18 @@ def main() -> None:
         if not args.text and not args.input_csv:
             raise ValueError("No input provided. Please provide either an input text string or a path to an input CSV file.")
         
+        if requires_training and (args.evaluate or args.optimize_threshold or args.optimize_weight):
+            raise ValueError("Cannot evaluate because the model and vectorizer do not exist. Train the model first using a labeled training dataset.")  
+        
         # Training Validation: If the model needs training, ensure that an input CSV file is provided for training
         if requires_training and args.input_csv:
+            if not dataset_is_training_data(str(final_input_csv)):
+                raise ValueError("Model and vectorizer need to be trained. Please provide a labeled training dataset.")
             converted_csv_path = edit_training_csv(str(final_input_csv), str(data_dir / "converted.csv"))
             train_csv_path, _, _ = split_dataset(converted_csv_path=str(converted_csv_path), train_csv_path=str(data_dir / "training_data" / "train.csv"), validation_csv_path=str(data_dir / "training_data" / "validation.csv"), test_csv_path=str(data_dir / "training_data" / "test.csv"), random_seed=42)
             training_dataset = load_labeled_data(str(train_csv_path), args.required_columns)
             texts, labels = map(list, zip(*training_dataset))
-            train(texts, labels, str(final_model_path), str(final_vectorizer_path))
-        elif requires_training:
-            raise ValueError("Model and vectorizer need to be trained, but no input CSV file was provided for training. Please provide a valid input CSV file.")    
+            train(texts, labels, str(final_model_path), str(final_vectorizer_path))  
         
         # Evaluation Validation: If the evaluation flag is set, ensure that an input CSV file is provided for evaluation
         if args.evaluate and final_input_csv:
@@ -381,6 +403,10 @@ def main() -> None:
             else:
                 evaluate_classifier_results = evaluate_classifier(str(final_input_csv), TARGET_COLUMNS, str(final_model_path), str(final_vectorizer_path), args.threshold)            
             print("Evaluation Results:", evaluate_classifier_results)
+            if sst_dataset_available(data_dir):
+                sst_dataset = load_sst_dataset(str(data_dir / "SST" / "datasetSentences.txt"), str(data_dir / "SST" / "datasetSplit.txt"), str(data_dir / "SST" / "dictionary.txt"), str(data_dir / "SST" / "sentiment_labels.txt"), 3)
+                compared_sentiment_results = compare_sentiment_models(sst_dataset)
+                print("Sentiment Model Comparison Results(Errors):", compared_sentiment_results)
             return
         if args.evaluate and not final_input_csv:
             raise ValueError("Evaluation flag is set, but no input CSV file was provided for evaluation. Please provide a valid input CSV file for evaluation.")    
@@ -399,30 +425,11 @@ def main() -> None:
             raise ValueError("Optimize threshold flag is set, but no input CSV file was provided for optimization. Please provide a valid input CSV file for optimizing the threshold.")
 
         # Optimize Ensemble Weight Validation: If the optimize ensemble weight flag is set, ensure that an input CSV file is provided for optimizing the ensemble weight    
-        if args.optimize_weight and final_input_csv:
-            if dataset_is_training_data(str(final_input_csv)):
-                converted_csv_path = edit_training_csv(str(final_input_csv), str(data_dir / "converted.csv"))
-                _, validation_csv_path, _ = split_dataset(converted_csv_path=str(converted_csv_path), train_csv_path=str(data_dir / "training_data" / "train.csv"), validation_csv_path=str(data_dir / "training_data" / "validation.csv"), test_csv_path=str(data_dir / "training_data" / "test.csv"), random_seed=42)
-                best_weight, mae = optimize_ensemble_weight(str(validation_csv_path), TARGET_COLUMNS, str(final_model_path), str(final_vectorizer_path))
-            else:
-                best_weight, mae = optimize_ensemble_weight(str(final_input_csv), TARGET_COLUMNS, str(final_model_path), str(final_vectorizer_path))
+        if args.optimize_weight:
+            sst_dataset = load_sst_dataset(str(data_dir / "SST" / "datasetSentences.txt"), str(data_dir / "SST" / "datasetSplit.txt"), str(data_dir / "SST" / "dictionary.txt"), str(data_dir / "SST" / "sentiment_labels.txt"), 3)
+            best_weight, mae = optimize_ensemble_weight(sst_dataset)
             print(f"Optimal Ensemble Weight: {best_weight}, Best MAE: {mae}")
             return
-        if args.optimize_weight and not final_input_csv:
-            raise ValueError("Optimize ensemble weight flag is set, but no input CSV file was provided for optimization. Please provide a valid input CSV file for optimizing the ensemble weight.")
-        
-        # Compare Models Validation: If the compare models flag is set, ensure that an input CSV file is provided for comparing the sentiment models
-        if args.compare_models and final_input_csv:
-            if dataset_is_training_data(str(final_input_csv)):
-                converted_csv_path = edit_training_csv(str(final_input_csv), str(data_dir / "converted.csv"))
-                _, validation_csv_path, _ = split_dataset(converted_csv_path=str(converted_csv_path), train_csv_path=str(data_dir / "training_data" / "train.csv"), validation_csv_path=str(data_dir / "training_data" / "validation.csv"), test_csv_path=str(data_dir / "training_data" / "test.csv"), random_seed=42)
-                compared_sentiment_results = compare_sentiment_models(str(validation_csv_path), TARGET_COLUMNS, str(final_model_path), str(final_vectorizer_path))
-            else:
-                compared_sentiment_results = compare_sentiment_models(str(final_input_csv), TARGET_COLUMNS, str(final_model_path), str(final_vectorizer_path))
-            print("Sentiment Model Comparison Results:", compared_sentiment_results)
-            return
-        if args.compare_models and not final_input_csv:
-            raise ValueError("Compare models flag is set, but no input CSV file was provided for comparison. Please provide a valid input CSV file for comparing sentiment models.")
         
         # Visualization Validation: If the visualize flag is set, ensure that an input CSV file is provided for visualization, as visualization is intended for multi-post analysis
         if args.visualize:
@@ -470,6 +477,8 @@ def main() -> None:
             enriched_posts = build_enriched_posts(csv_path=str(final_input_csv) if final_input_csv else None, text=args.text if args.text else None, required_columns=PREDICTION_COLUMNS, model_path=str(final_model_path), vectorizer_path=str(final_vectorizer_path), weight=args.weight, threshold=args.threshold)
         if enriched_posts and final_output_csv:
             save_results(str(final_output_csv), OUTPUT_COLUMNS, enriched_posts)
+            print_summary(enriched_posts)
+            print(f"Results saved to: {final_output_csv}")
         elif enriched_posts and not args.visualize:    
             print(enriched_posts)    
 

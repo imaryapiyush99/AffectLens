@@ -1,8 +1,16 @@
 # AffectLens
 
-AffectLens is a Python-based emotional analytics toolkit that combines emotion classification, sentiment analysis, volatility detection, and visual analytics to uncover emotional patterns in text datasets.
+![Python](https://img.shields.io/badge/Python-3.12+-blue)
+![Tests](https://img.shields.io/badge/tests-passing-brightgreen)
+![License](https://img.shields.io/badge/license-MIT-green)
 
-Built using traditional machine learning, ensemble sentiment analysis, and statistical emotion tracking, AffectLens transforms raw text into actionable emotional insights.
+AffectLens is a Python-based emotional analytics toolkit that combines emotion classification, sentiment analysis, emotional volatility detection, and visual analytics to uncover emotional patterns in text datasets.
+
+Built using traditional machine learning, ensemble sentiment analysis, and statistical volatility analysis, AffectLens transforms raw text into actionable emotional insights.
+
+## Demo Video
+
+https://youtu.be/rhRAlbQccRc
 
 ---
 
@@ -10,7 +18,7 @@ Built using traditional machine learning, ensemble sentiment analysis, and stati
 
 ### Emotion Analysis
 - Multi-label emotion classification
-- Confidence scores for each predicted emotion
+- Confidence scores for predicted emotions
 - Dominant emotion extraction
 - Emotion distribution analysis
 
@@ -41,7 +49,49 @@ Built using traditional machine learning, ensemble sentiment analysis, and stati
 - CSV dataset support
 - Single-text analysis
 - Command-line interface
-- Comprehensive automated test suite
+- Automated test suite
+
+---
+
+## Results
+
+### Emotion Classification Performance
+
+| Metric | Score |
+|----------|----------|
+| Micro F1 Score | 0.539 |
+| Macro F1 Score | 0.345 |
+| Weighted F1 Score | 0.509 |
+| Hamming Loss | 0.105 |
+
+### Sentiment Analysis Performance
+
+| Model | Error |
+|----------|----------|
+| VADER | 0.220 |
+| TextBlob | 0.197 |
+| Ensemble | 0.190 |
+
+Lower error values indicate better sentiment prediction performance.
+
+---
+
+## Evaluation
+
+The emotion classifier was evaluated on a held-out validation dataset using standard multi-label classification metrics:
+
+- Micro F1 Score
+- Macro F1 Score
+- Weighted F1 Score
+- Hamming Loss
+
+The sentiment analysis module was evaluated using the Stanford Sentiment Treebank (SST) dataset, comparing:
+
+- VADER
+- TextBlob
+- Weighted Ensemble
+
+The ensemble model achieved the lowest prediction error among the evaluated approaches.
 
 ---
 
@@ -82,115 +132,92 @@ AffectLens/
 │   ├── visualization.py
 │   └── constants.py
 │
+├── data/
 ├── models/
-│
-├── visualizations/
-│
 ├── tests/
+├── visualizations/
 │
 ├── project.py
 ├── requirements.txt
+├── LICENSE
 └── README.md
 ```
+
+The project follows a modular architecture where each component is responsible for a specific stage of the emotional analytics pipeline.
 
 ---
 
 ## Installation
 
-Clone the repository:
-
 ```bash
-git clone https://github.com/<your-username>/AffectLens.git
+git clone https://github.com/imaryapiyush99/AffectLens.git
 cd AffectLens
-```
 
-Create a virtual environment:
-
-```bash
 python -m venv .venv
-```
 
-Activate it:
-
-### macOS / Linux
-
-```bash
+# macOS / Linux
 source .venv/bin/activate
-```
 
-### Windows
-
-```bash
+# Windows
 .venv\Scripts\activate
-```
 
-Install dependencies:
-
-```bash
 pip install -r requirements.txt
 ```
 
 ---
 
-## Train a Model
+## Included Datasets
 
-```bash
-python project.py \
-    --input_csv data/go_emotions.csv \
-    --model_path models/model.joblib \
-    --vectorizer_path models/vectorizer.joblib
+The repository includes sample datasets for training, validation, and testing:
+
+```text
+data/training_data/train.csv
+data/validation_data/validation.csv
+data/test_data/test.csv
 ```
+
+These datasets allow users to reproduce results and experiment with the project immediately after installation.
 
 ---
 
-## Analyze a Dataset
+## Quick Start
+
+### Train a Model
+
+```bash
+python project.py \
+    --input_csv data/training_data/train.csv \
+    --model_path models/model.joblib \
+    --vectorizer_path models/vectorizers/vectorizer.joblib
+```
+
+### Analyze a Dataset
 
 ```bash
 python project.py \
     --input_csv data/test_data/test.csv \
     --model_path models/model.joblib \
-    --vectorizer_path models/vectorizer.joblib \
+    --vectorizer_path models/vectorizers/vectorizer.joblib \
     --output_csv results.csv
 ```
 
----
-
-## Analyze a Single Text
+### Analyze a Single Text
 
 ```bash
 python project.py \
     --text "I am excited about finishing AffectLens." \
     --model_path models/model.joblib \
-    --vectorizer_path models/vectorizer.joblib
+    --vectorizer_path models/vectorizers/vectorizer.joblib
 ```
 
----
-
-## Generate Visualizations
+### Generate Visualizations
 
 ```bash
 python project.py \
     --visualize \
     --input_csv data/test_data/test.csv \
     --model_path models/model.joblib \
-    --vectorizer_path models/vectorizer.joblib
-```
-
-Generated visualizations are saved to:
-
-```text
-visualizations/
-```
-
-Including:
-
-```text
-sentiment_trend.png
-volatility_trend.png
-emotional_swing_trend.png
-emotion_distribution.png
-emotion_heatmap.png
-emotion_transition_matrix.png
+    --vectorizer_path models/vectorizers/vectorizer.joblib
 ```
 
 ---
@@ -207,51 +234,13 @@ Average emotional swing: 0.39
 
 Most common emotion: Neutral
 
-Most positive post:
-I wanted to romance [NAME] more than I've wanted to romance more than any other character in the series.
-(Score: 0.97)
-
-Most negative post:
-That woman is simultaneously very evil and using her evil to make others regret doing evil things.
-(Score: -0.98)
-
 High-volatility posts: 22,783 (73.1%)
 ========================================
 ```
 
 ---
 
-## Visualizations
-
-### Sentiment Trend
-
-Tracks changes in overall sentiment over time using a moving-average smoothing strategy for large datasets.
-
-### Volatility Trend
-
-Visualizes emotional instability and fluctuations across posts.
-
-### Emotional Swing Trend
-
-Measures emotional change between consecutive posts.
-
-### Emotion Distribution
-
-Displays the frequency of detected emotions.
-
-### Emotion Heatmap
-
-Visualizes emotion occurrence patterns across the dataset.
-
-### Emotion Transition Matrix
-
-Shows how dominant emotions transition from one post to the next.
-
----
-
 ## Example Outputs
-
-Add screenshots after generating visualizations:
 
 ### Emotion Distribution
 
@@ -267,6 +256,19 @@ Add screenshots after generating visualizations:
 
 ---
 
+## Visualizations
+
+- Sentiment Trend
+- Volatility Trend
+- Emotional Swing Trend
+- Emotion Distribution
+- Emotion Heatmap
+- Emotion Transition Matrix
+
+**Note:** If no timestamp column is provided, AffectLens assumes posts are already ordered chronologically and performs volatility analysis over post sequence rather than real time.
+
+---
+
 ## Testing
 
 Run all tests:
@@ -278,7 +280,7 @@ pytest -v
 Current status:
 
 ```text
-81 passed
+81 tests passing
 ```
 
 ---
@@ -290,6 +292,8 @@ Current status:
 
 ### Machine Learning
 - scikit-learn
+- TF-IDF Vectorization
+- Logistic Regression
 
 ### NLP
 - TextBlob
@@ -303,18 +307,6 @@ Current status:
 
 ### Testing
 - pytest
-
----
-
-## Key Metrics
-
-- 81 automated tests
-- Multi-label emotion classification
-- Ensemble sentiment analysis
-- Emotional volatility detection
-- Emotional swing tracking
-- 6 visualization types
-- Command-line interface
 
 ---
 
@@ -332,12 +324,12 @@ Current status:
 
 ## Motivation
 
-Understanding emotions at scale is challenging. While traditional sentiment analysis provides a single positive-to-negative score, real human emotions are multi-dimensional and dynamic.
+Traditional sentiment analysis reduces text to a single positive-to-negative score. Human emotions, however, are multi-dimensional and dynamic.
 
-AffectLens was built to move beyond simple sentiment analysis by combining emotion classification, volatility detection, emotional transitions, and visual analytics into a unified emotional intelligence pipeline.
+AffectLens was built to move beyond simple sentiment analysis by combining emotion classification, emotional volatility detection, transition analysis, and visualization into a unified emotional analytics pipeline.
 
 ---
 
 ## License
 
-This project is licensed under the MIT License.
+This project is licensed under the MIT License. See the LICENSE file for details.

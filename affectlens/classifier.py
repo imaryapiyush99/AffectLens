@@ -46,7 +46,7 @@ def train(texts: list[str], labels: list[list[int]], model_path: str, vectorizer
     vectorizer = TfidfVectorizer()
     feature_matrix = vectorizer.fit_transform(texts)
 
-    model = LogisticRegression(class_weight="balanced")
+    model = LogisticRegression(class_weight="balanced", max_iter=1000)
     clf = MultiOutputClassifier(model)
     clf.fit(feature_matrix, labels)
 
