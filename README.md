@@ -10,7 +10,7 @@ Built using traditional machine learning, ensemble sentiment analysis, and stati
 
 ## Demo Video
 
-https://youtu.be/rhRAlbQccRc
+https://www.youtube.com/watch?v=_XUKlRynPM4
 
 ---
 
