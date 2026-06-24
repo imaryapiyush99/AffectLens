@@ -6,6 +6,7 @@ from sklearn.multioutput import MultiOutputClassifier
 from affectlens.constants import EMOTIONS
 
 
+
 def needs_training(model_path: str, vectorizer_path: str) -> bool:
     """
     Checks if the model needs to be trained by checking if the model file and the vectorizer file exist.
@@ -46,7 +47,7 @@ def train(texts: list[str], labels: list[list[int]], model_path: str, vectorizer
     vectorizer = TfidfVectorizer()
     feature_matrix = vectorizer.fit_transform(texts)
 
-    model = LogisticRegression(class_weight="balanced", max_iter=1000)
+    model = LogisticRegression()
     clf = MultiOutputClassifier(model)
     clf.fit(feature_matrix, labels)
 
@@ -72,8 +73,6 @@ def load(model_path: str, vectorizer_path: str) -> tuple[MultiOutputClassifier, 
     clf = joblib.load(model_path)
     vectorizer = joblib.load(vectorizer_path)
     return clf, vectorizer
-
-
 
 def predict(text: str, clf: MultiOutputClassifier, vectorizer: TfidfVectorizer, threshold: float) -> dict[str, float]:
     """
@@ -118,8 +117,6 @@ def predict(text: str, clf: MultiOutputClassifier, vectorizer: TfidfVectorizer, 
 
     return predictions
 
-
-
-
+    
 
 

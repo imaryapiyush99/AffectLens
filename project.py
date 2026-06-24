@@ -7,7 +7,7 @@ from affectlens.preprocessing import preprocess
 from affectlens.classifier import needs_training, train, load, predict
 from affectlens.sentiment import ensemble_score
 from affectlens.volatility import calculate_emotional_swing, calculate_volatility_score, high_volatility_flag
-from affectlens.evaluate import evaluate_classifier, optimize_threshold, optimize_ensemble_weight, compare_sentiment_models
+from affectlens.evaluate import evaluate_classifier, optimize_threshold, optimize_ensemble_weight, compare_sentiment_models, get_classification_report
 from affectlens.visualization import plot_sentiment_trend, plot_volatility_trend, plot_emotional_swing_trend, plot_emotion_distribution, plot_emotion_heatmap, plot_emotion_transition_matrix
 
 
@@ -364,6 +364,7 @@ def main() -> None:
     parser.add_argument("--evaluate", action="store_true", help="Flag to evaluate the trained model on a test set, compare sentiment analysis models and show the results.")
     parser.add_argument("--optimize_threshold", action="store_true", help="Flag to optimize the threshold for the classifier based on validation data.")
     parser.add_argument("--optimize_weight", action="store_true", help="Flag to optimize the ensemble weight for combining VADER and TextBlob scores based on validation data.")
+    parser.add_argument("--classification_report", action="store_true", help="Flag to generate a classification report for the model.")
     parser.add_argument("--visualize", action="store_true", help="Flag to visualize the results.")
     args = parser.parse_args()
 
@@ -372,7 +373,8 @@ def main() -> None:
     final_input_csv = Path(args.input_csv).expanduser().resolve() if args.input_csv else None  
     final_model_path = Path(args.model_path).expanduser().resolve()
     final_vectorizer_path = Path(args.vectorizer_path).expanduser().resolve()
-    final_output_csv =Path(args.output_csv).expanduser().resolve() if args.output_csv else None
+    final_output_csv =Path(args.output_csv).expanduser().resolve() if args.output_csv else None 
+
 
     try:
         requires_training = needs_training(args.model_path, args.vectorizer_path)
@@ -388,11 +390,16 @@ def main() -> None:
         if requires_training and args.input_csv:
             if not dataset_is_training_data(str(final_input_csv)):
                 raise ValueError("Model and vectorizer need to be trained. Please provide a labeled training dataset.")
-            converted_csv_path = edit_training_csv(str(final_input_csv), str(data_dir / "converted.csv"))
-            train_csv_path, _, _ = split_dataset(converted_csv_path=str(converted_csv_path), train_csv_path=str(data_dir / "training_data" / "train.csv"), validation_csv_path=str(data_dir / "training_data" / "validation.csv"), test_csv_path=str(data_dir / "training_data" / "test.csv"), random_seed=42)
-            training_dataset = load_labeled_data(str(train_csv_path), args.required_columns)
-            texts, labels = map(list, zip(*training_dataset))
-            train(texts, labels, str(final_model_path), str(final_vectorizer_path))  
+            elif final_input_csv == data_dir / "training_data" / "train.csv":
+                training_dataset = load_labeled_data(str(final_input_csv), args.required_columns)
+                texts, labels = map(list, zip(*training_dataset))
+                train(texts, labels, str(final_model_path), str(final_vectorizer_path)) 
+            else:    
+                converted_csv_path = edit_training_csv(str(final_input_csv), str(data_dir / "converted.csv"))
+                train_csv_path, _, _ = split_dataset(converted_csv_path=str(converted_csv_path), train_csv_path=str(data_dir / "training_data" / "train.csv"), validation_csv_path=str(data_dir / "training_data" / "validation.csv"), test_csv_path=str(data_dir / "training_data" / "test.csv"), random_seed=42)
+                training_dataset = load_labeled_data(str(train_csv_path), args.required_columns)
+                texts, labels = map(list, zip(*training_dataset))
+                train(texts, labels, str(final_model_path), str(final_vectorizer_path))  
         
         # Evaluation Validation: If the evaluation flag is set, ensure that an input CSV file is provided for evaluation
         if args.evaluate and final_input_csv:
@@ -431,6 +438,19 @@ def main() -> None:
             print(f"Optimal Ensemble Weight: {best_weight}, Best MAE: {mae}")
             return
         
+        # Classification Report Validation: If the classification report flag is set, ensure that an input CSV file is provided for generating the classification report
+        if args.classification_report and final_input_csv:
+            if dataset_is_training_data(str(final_input_csv)):
+                converted_csv_path = edit_training_csv(str(final_input_csv), str(data_dir / "converted.csv"))
+                _, _, test_csv_path = split_dataset(converted_csv_path=str(converted_csv_path), train_csv_path=str(data_dir / "training_data" / "train.csv"), validation_csv_path=str(data_dir / "training_data" / "validation.csv"), test_csv_path=str(data_dir / "training_data" / "test.csv"), random_seed=42)
+                classification_report_results = get_classification_report(str(test_csv_path), TARGET_COLUMNS, str(final_model_path), str(final_vectorizer_path), args.threshold)            
+            else:
+                classification_report_results = get_classification_report(str(final_input_csv), TARGET_COLUMNS, str(final_model_path), str(final_vectorizer_path), args.threshold)            
+            print("Classification Report Results:", classification_report_results)
+            return
+        if args.classification_report and not final_input_csv:
+            raise ValueError("Classification report flag is set, but no input CSV file was provided for generating the report. Please provide a valid input CSV file for generating the classification report.")
+
         # Visualization Validation: If the visualize flag is set, ensure that an input CSV file is provided for visualization, as visualization is intended for multi-post analysis
         if args.visualize:
             visualization_dir = Path("visualizations")

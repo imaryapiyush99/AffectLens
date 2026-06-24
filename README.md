@@ -198,7 +198,7 @@ python project.py \
     --input_csv data/test_data/test.csv \
     --model_path models/model.joblib \
     --vectorizer_path models/vectorizers/vectorizer.joblib \
-    --output_csv results.csv
+    --output_csv results/results.csv
 ```
 
 ### Analyze a Single Text

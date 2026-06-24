@@ -1,9 +1,10 @@
 from affectlens.data_loader import validate_csv, load_labeled_data
-from affectlens.classifier import load, predict 
+from affectlens.classifier import load, predict
 from affectlens.sentiment import ensemble_score, get_vader_score, get_textblob_score
 from affectlens.constants import EMOTIONS, THRESHOLD
 from sklearn.metrics import f1_score, hamming_loss
 from pathlib import Path
+from sklearn.metrics import classification_report
 
 
 def _predictions_to_binary(predictions: list[dict[str, float]], emotions: list[str]) -> list[list[int]]:
@@ -168,3 +169,42 @@ def compare_sentiment_models(dataset: list[tuple[str, float]]) -> dict[str, floa
         "Ensemble": ensemble_mae
     }
     return model_comparison_results
+
+
+def get_classification_report(test_csv_path: str, required_columns: list[str], model_path: str, vectorizer_path: str, threshold: float) -> dict[str, str | float]:
+    """
+    Generates a classification report for the model.
+
+    Args: test_csv_path (str): Path to the test CSV file, required_columns (list[str]): List of column names representing the target emotions, model_path (str): Path to the saved trained model, vectorizer_path (str): Path to the saved vectorizer, threshold (float): Threshold for classifying predictions
+
+    Returns: dict[str, str | float]: A dictionary containing the classification report and evaluation metrics such as micro f1, macro f1, weighted f1, and hamming loss for each emotion category
+    """
+    # Implementation for generating a classification report goes here
+    if not isinstance(test_csv_path, str) or not isinstance(model_path, str) or not isinstance(vectorizer_path, str):
+        raise ValueError("CSV path, model path, and vectorizer path must be strings.")
+    if not test_csv_path.strip() or not model_path.strip() or not vectorizer_path.strip():
+        raise ValueError("CSV path, model path, and vectorizer path cannot be empty or whitespace only.")
+    if not isinstance(required_columns, list) or not all(isinstance(col, str) for col in required_columns):
+        raise ValueError("Required columns must be a list of strings.")
+    if not required_columns:
+        raise ValueError("Required columns list cannot be empty.")
+    if not all(col.strip() for col in required_columns):
+        raise ValueError("Required column names cannot be empty or whitespace only.")
+    if not isinstance(threshold, (int, float)) or not 0 <= threshold <= 1:
+        raise ValueError("Threshold must be a number between 0 and 1.")
+    if not Path(test_csv_path).is_file():
+        raise ValueError("CSV path must be a valid file path.")
+    
+    validate_csv(test_csv_path, required_columns=required_columns)
+    model, vectorizer = load(model_path, vectorizer_path)
+    test_data = load_labeled_data(test_csv_path, required_columns)
+    texts, true_labels = zip(*test_data)
+    texts, true_labels = list(texts), list(true_labels)
+    predictions = []
+    for text in texts:
+        prediction = predict(text, model, vectorizer, threshold)
+        predictions.append(prediction)
+
+    predicted_labels = _predictions_to_binary(predictions, EMOTIONS)
+    report = classification_report(true_labels, predicted_labels, target_names=EMOTIONS, output_dict=True)
+    return report
